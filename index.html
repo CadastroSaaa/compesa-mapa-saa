@@ -202,16 +202,14 @@ const map = new maplibregl.Map({
     version: 8,
     glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     sources: {
-      "carto-dark": {
+      "satellite": {
         type: "raster",
-        tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+        tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
         tileSize: 256,
-        attribution: "© OpenStreetMap, © CARTO"
+        attribution: "© Esri, Maxar, Earthstar Geographics"
       }
     },
-    layers: [{id:"bg", type:"raster", source:"carto-dark"}]
+    layers: [{id:"bg", type:"raster", source:"satellite"}]
   },
   center: [-37.05, -8.05],
   zoom: 7,
@@ -260,7 +258,7 @@ map.on("load", () => {
         "circle-color": l.color,
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, l.radius*0.4, 13, l.radius, 18, l.radius*3],
         "circle-stroke-width": 0.6,
-        "circle-stroke-color": "#06121d",
+        "circle-stroke-color": "#1a1a1a",
         "circle-opacity": 0.92
       }
     });
@@ -278,7 +276,7 @@ map.on("load", () => {
       "circle-color": MICRO_COLOR,
       "circle-opacity": 0.55,
       "circle-stroke-width": 1,
-      "circle-stroke-color": "#06121d",
+      "circle-stroke-color": "#1a1a1a",
       "circle-radius": [
         "interpolate", ["linear"], ["get", "sqrt_point_count"],
         1, 7,
@@ -300,7 +298,7 @@ map.on("load", () => {
       "text-font": ["Open Sans Regular"],
       "text-allow-overlap": true
     },
-    paint: { "text-color": "#06121d" }
+    paint: { "text-color": "#1a1a1a" }
   });
   map.addLayer({
     id: "Micromedidor_SAA",
@@ -312,7 +310,7 @@ map.on("load", () => {
       "circle-color": MICRO_COLOR,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1, 13, 2.2, 18, 6],
       "circle-stroke-width": 0.6,
-      "circle-stroke-color": "#06121d",
+      "circle-stroke-color": "#1a1a1a",
       "circle-opacity": 0.92
     }
   });
