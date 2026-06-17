@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro Técnico SAA — Pernambuco</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@3.0.6/dist/pmtiles.js"></script>
+<style>
+  :root{
+    --bg-panel:#10243a;
+    --bg-panel-2:#16334f;
+    --ink:#eaf2f8;
+    --ink-dim:#9fb6c9;
+    --line:#274a68;
+    --accent:#3fa9e8;
+    --accent-2:#7fd1ff;
+    --warn:#e8b13f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#0a1825;color:var(--ink);}
+  #map{position:absolute;inset:0;}
+
+  #topbar{
+    position:absolute;top:0;left:0;right:0;height:54px;
+    background:linear-gradient(180deg,rgba(10,24,37,.96),rgba(10,24,37,.85));
+    display:flex;align-items:center;gap:12px;padding:0 16px;z-index:5;
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(4px);
+  }
+  #topbar .title{font-weight:700;font-size:15px;letter-spacing:.2px;}
+  #topbar .subtitle{font-size:12px;color:var(--ink-dim);}
+  #topbar .spacer{flex:1;}
+  #search{
+    background:var(--bg-panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:7px 10px;border-radius:6px;font-size:13px;width:220px;
+  }
+  #search::placeholder{color:var(--ink-dim);}
+
+  #panel{
+    position:absolute;top:64px;left:10px;width:280px;max-height:calc(100% - 90px);
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:10px;
+    overflow-y:auto;z-index:4;box-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);
+    margin:0;padding:12px 14px 6px;}
+  .group{border-top:1px solid var(--line);}
+  .group:first-of-type{border-top:none;}
+  .group-header{
+    display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:pointer;user-select:none;
+  }
+  .group-header:hover{background:rgba(255,255,255,.03);}
+  .group-header .caret{transition:transform .15s;color:var(--ink-dim);font-size:11px;}
+  .group-header.collapsed .caret{transform:rotate(-90deg);}
+  .group-title{font-weight:600;font-size:13px;flex:1;}
+  .group-count{font-size:11px;color:var(--ink-dim);}
+  .layer-list{padding:0 14px 10px;display:flex;flex-direction:column;gap:6px;}
+  .group-header.collapsed + .layer-list{display:none;}
+  .layer-row{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;}
+  .layer-row input{accent-color:var(--accent);width:14px;height:14px;flex:none;}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none;}
+  .swatch.line{border-radius:0;height:3px;margin-top:4px;}
+  .layer-row label{flex:1;cursor:pointer;color:var(--ink);}
+  .layer-row .n{color:var(--ink-dim);font-size:11px;}
+
+  #panel-toggle{
+    position:absolute;top:64px;left:10px;z-index:4;background:var(--bg-panel);
+    border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    width:34px;height:34px;display:none;align-items:center;justify-content:center;cursor:pointer;
+    font-size:16px;
+  }
+
+  #legend-toggle, .maplibregl-ctrl-top-right{z-index:4;}
+
+  #popup-card{font-size:12.5px;line-height:1.45;max-width:280px;}
+  #popup-card h3{margin:0 0 6px;font-size:13px;color:#13344f;border-bottom:1px solid #dbe7ee;padding-bottom:5px;}
+  #popup-card table{width:100%;border-collapse:collapse;}
+  #popup-card td{padding:2px 4px;vertical-align:top;}
+  #popup-card td.k{color:#5a7185;white-space:nowrap;padding-right:8px;font-weight:600;}
+  #popup-card td.v{color:#13202c;word-break:break-word;}
+  .maplibregl-popup-content{border-radius:8px;padding:12px 14px;}
+
+  #loading{
+    position:absolute;inset:0;background:#0a1825;z-index:10;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+  }
+  #loading .ring{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);
+    border-top-color:var(--accent);animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading p{color:var(--ink-dim);font-size:13px;margin:0;}
+
+  #attrib{
+    position:absolute;bottom:8px;right:8px;font-size:10.5px;color:rgba(255,255,255,.4);z-index:4;
+  }
+
+  @media (max-width:760px){
+    #panel{width:240px;left:8px;top:60px;}
+    #panel-toggle{display:flex;}
+    #panel.hidden{display:none;}
+    #search{width:130px;}
+    #topbar .subtitle{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="ring"></div><p>Carregando camadas técnicas…</p></div>
+
+<div id="topbar">
+  <div>
+    <div class="title">Cadastro Técnico SAA</div>
+    <div class="subtitle">Abastecimento de água · Pernambuco</div>
+  </div>
+  <div class="spacer"></div>
+  <input id="search" type="text" placeholder="Buscar matrícula do micromedidor…">
+</div>
+
+<div id="panel-toggle">☰</div>
+<div id="panel"><div id="panel-body"></div></div>
+<div id="map"></div>
+<div id="attrib">Compesa · MRAE II</div>
+
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+
+// ---------- Definição das camadas ----------
+// category agrupa visualmente; color define o estilo; type: point | line | polygon
+const LAYERS = [
+  // --- Adutoras e Rede (linhas) ---
+  {id:"Adutora_Agua_Bruta", label:"Adutora de água bruta", cat:"Tubulações", type:"line", color:"#caa24a", width:2},
+  {id:"Adutora_de_Agua_Tratada_SAA", label:"Adutora de água tratada", cat:"Tubulações", type:"line", color:"#3fa9e8", width:2},
+  {id:"Rede_SAA", label:"Rede de distribuição", cat:"Tubulações", type:"line", color:"#7fd1ff", width:1.1},
+
+  // --- Áreas ---
+  {id:"Area_de_Abastecimento_SAA", label:"Área de abastecimento", cat:"Áreas", type:"polygon", color:"#3a6f8f", opacity:0.18, lineColor:"#6fb6dd"},
+
+  // --- Reservação e elevação ---
+  {id:"Reservatorio_SAA", label:"Reservatório", cat:"Reservação e elevação", type:"point", color:"#e8b13f", radius:4.5},
+  {id:"Estacao_Elevatoria_de_Agua_Tratada_SAA", label:"Estação elevatória", cat:"Reservação e elevação", type:"point", color:"#e88a3f", radius:4},
+  {id:"Bomba_de_Agua_Tratada_SAA", label:"Bomba de água tratada", cat:"Reservação e elevação", type:"point", color:"#e85f3f", radius:3.5},
+
+  // --- Controle e válvulas ---
+  {id:"Registro_SAA", label:"Registro", cat:"Controle e válvulas", type:"point", color:"#9c7fe8", radius:3.5},
+  {id:"Valvula_de_Controle_SAA", label:"Válvula de controle", cat:"Controle e válvulas", type:"point", color:"#7f5fe8", radius:3.5},
+  {id:"Controlador_da_VRP_SAA", label:"Controlador de VRP", cat:"Controle e válvulas", type:"point", color:"#5f3fc9", radius:4},
+  {id:"Valvula_do_Micromedidor_SAA", label:"Válvula do micromedidor", cat:"Controle e válvulas", type:"point", color:"#b89fe8", radius:2.2},
+
+  // --- Medição ---
+  {id:"Macromedidor_SAA", label:"Macromedidor", cat:"Medição", type:"point", color:"#1fb894", radius:4},
+  {id:"Medidor_de_Nivel_SAA", label:"Medidor de nível", cat:"Medição", type:"point", color:"#3fe88a", radius:4},
+  {id:"Medidor_de_Pressao_SAA", label:"Medidor de pressão", cat:"Medição", type:"point", color:"#8ae83f", radius:4},
+  {id:"Estacao_Pitometrica_SAA", label:"Estação pitométrica", cat:"Medição", type:"point", color:"#c8e83f", radius:4},
+  {id:"DataLogger_SAA", label:"Data logger", cat:"Medição", type:"point", color:"#e8df3f", radius:3.5},
+
+  // --- Qualidade ---
+  {id:"Estacao_de_Amostragem_SAA", label:"Estação de amostragem", cat:"Qualidade da água", type:"point", color:"#e83f7f", radius:4},
+  {id:"Laboratorio_SAA", label:"Laboratório", cat:"Qualidade da água", type:"point", color:"#e83f3f", radius:5},
+
+  // --- Micromedidor: fonte separada, com clustering (ver lógica dedicada abaixo) ---
+  {id:"Micromedidor_SAA", label:"Micromedidor (agrupado por zoom)", cat:"Medição", type:"micro-cluster", color:"#3fe8c0", radius:2.2},
+];
+
+const DEFAULT_OFF = new Set(["Valvula_do_Micromedidor_SAA"]); // muito denso, comeca desligado por padrão
+
+// Campos a exibir no popup por camada (fallback genérico se não listado)
+const POPUP_FIELDS = {
+  default: ["CODID","DN","MATERIAL","DATAINST","ATIVADO","HABILITADO","LOCALIDADE","OBSERVACAO"],
+  Rede_SAA: ["CODID","MATERIAL","DN","DI","TIPOAGUA","compriment","CLASSE","DATAINST","ATIVADO","LOCALIDADE","OBSERVACAO"],
+  Adutora_de_Agua_Tratada_SAA: ["CODID","MATERIAL","DN","DI","TPADUCAO","DATAINST","ATIVADO","LOCALIDADE","OBSERVACAO"],
+  Adutora_Agua_Bruta: ["CODID","MATERIAL","DN","DI","TPADUCAO","DATAINST","ATIVADO","LOCALIDADE","OBSERVACAO"],
+  Micromedidor_SAA: ["CODID","MATRICULA","DN","FABRICANTE","MODELO","TIPOMICROM","CALIBRADO","DATAINST","ATIVADO","LOCALIDADE","OBSERVACAO"],
+  Reservatorio_SAA: ["CODID","NOME","MATERIAL","VOLUME","FORMA","NAMAX","NAMIN","ATIVADO","LOCALIDADE","Endereco","OBSERVACAO"],
+  Registro_SAA: ["CODID","NOMEREGIST","TIPOREG","DN","FUNCAO","FABRICANTE","ATIVADO","ENDERECO","LOCALIDADE","OBSERVACAO"],
+  Area_de_Abastecimento_SAA: ["CODID","LOCALIDADE","OBSERVACAO"],
+};
+
+const FIELD_LABELS = {
+  CODID:"Código", DN:"Diâmetro (DN)", DI:"Diâmetro interno", MATERIAL:"Material",
+  DATAINST:"Data instalação", ATIVADO:"Ativado", HABILITADO:"Habilitado",
+  LOCALIDADE:"Localidade", OBSERVACAO:"Observação", compriment:"Comprimento (m)",
+  CLASSE:"Classe", TIPOAGUA:"Tipo de água", TPADUCAO:"Tipo de adução",
+  MATRICULA:"Matrícula", FABRICANTE:"Fabricante", MODELO:"Modelo",
+  TIPOMICROM:"Tipo micromedidor", CALIBRADO:"Calibrado", NOME:"Nome",
+  VOLUME:"Volume", FORMA:"Forma", NAMAX:"Nível máx.", NAMIN:"Nível mín.",
+  Endereco:"Endereço", ENDERECO:"Endereço", NOMEREGIST:"Nome", TIPOREG:"Tipo",
+  FUNCAO:"Função",
+};
+
+function fmtVal(v){
+  if(v === null || v === undefined || v === "" ) return "—";
+  if(v === 0) return "0";
+  if(v === 1 && typeof v === "number") return v;
+  return v;
+}
+
+// ---------- Mapa ----------
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    glyphs: "https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      "carto-dark": {
+        type: "raster",
+        tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap, © CARTO"
+      }
+    },
+    layers: [{id:"bg", type:"raster", source:"carto-dark"}]
+  },
+  center: [-37.05, -8.05],
+  zoom: 7,
+  maxZoom: 19,
+});
+
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+map.addControl(new maplibregl.ScaleControl({unit:"metric"}), "bottom-left");
+map.addControl(new maplibregl.GeolocateControl({positionOptions:{enableHighAccuracy:true}}), "top-right");
+
+map.on("load", () => {
+  map.addSource("saa", { type: "vector", url: "pmtiles://./compesa_saa_rest.pmtiles" });
+  map.addSource("micro", { type: "vector", url: "pmtiles://./micromedidor_cluster.pmtiles" });
+
+  // Ordem de adição: polígonos -> linhas -> pontos (pontos por cima)
+  const polys = LAYERS.filter(l => l.type === "polygon");
+  const lines = LAYERS.filter(l => l.type === "line");
+  const points = LAYERS.filter(l => l.type === "point");
+
+  polys.forEach(l => {
+    map.addLayer({
+      id: l.id, type: "fill", source: "saa", "source-layer": l.id,
+      paint: { "fill-color": l.color, "fill-opacity": l.opacity ?? 0.2 }
+    });
+    map.addLayer({
+      id: l.id + "__outline", type: "line", source: "saa", "source-layer": l.id,
+      paint: { "line-color": l.lineColor ?? l.color, "line-width": 1, "line-opacity": 0.7 }
+    });
+  });
+
+  lines.forEach(l => {
+    map.addLayer({
+      id: l.id, type: "line", source: "saa", "source-layer": l.id,
+      paint: {
+        "line-color": l.color,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, l.width*0.5, 14, l.width, 18, l.width*2.5],
+        "line-opacity": 0.92
+      }
+    });
+  });
+
+  points.forEach(l => {
+    map.addLayer({
+      id: l.id, type: "circle", source: "saa", "source-layer": l.id,
+      paint: {
+        "circle-color": l.color,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, l.radius*0.4, 13, l.radius, 18, l.radius*3],
+        "circle-stroke-width": 0.6,
+        "circle-stroke-color": "#06121d",
+        "circle-opacity": 0.92
+      }
+    });
+  });
+
+  // --- Micromedidor: clusters + pontos individuais ---
+  const MICRO_COLOR = "#3fe8c0";
+  map.addLayer({
+    id: "Micromedidor_SAA_cluster",
+    type: "circle",
+    source: "micro",
+    "source-layer": "Micromedidor_SAA",
+    filter: [">", ["get", "point_count"], 1],
+    paint: {
+      "circle-color": MICRO_COLOR,
+      "circle-opacity": 0.55,
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#06121d",
+      "circle-radius": [
+        "interpolate", ["linear"], ["get", "sqrt_point_count"],
+        1, 7,
+        5, 12,
+        15, 18,
+        30, 26
+      ]
+    }
+  });
+  map.addLayer({
+    id: "Micromedidor_SAA_cluster_label",
+    type: "symbol",
+    source: "micro",
+    "source-layer": "Micromedidor_SAA",
+    filter: [">", ["get", "point_count"], 1],
+    layout: {
+      "text-field": ["get", "point_count"],
+      "text-size": 11,
+      "text-font": ["Open Sans Regular"],
+      "text-allow-overlap": true
+    },
+    paint: { "text-color": "#06121d" }
+  });
+  map.addLayer({
+    id: "Micromedidor_SAA",
+    type: "circle",
+    source: "micro",
+    "source-layer": "Micromedidor_SAA",
+    filter: ["==", ["get", "point_count"], 1],
+    paint: {
+      "circle-color": MICRO_COLOR,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1, 13, 2.2, 18, 6],
+      "circle-stroke-width": 0.6,
+      "circle-stroke-color": "#06121d",
+      "circle-opacity": 0.92
+    }
+  });
+
+  // visibilidade inicial
+  LAYERS.forEach(l => {
+    if (DEFAULT_OFF.has(l.id)) {
+      map.setLayoutProperty(l.id, "visibility", "none");
+      if (l.type === "polygon") map.setLayoutProperty(l.id+"__outline", "visibility", "none");
+    }
+  });
+
+  // popups
+  const interactiveIds = LAYERS.filter(l => l.type !== "micro-cluster").map(l => l.id)
+    .concat(["Micromedidor_SAA_cluster", "Micromedidor_SAA"]);
+  map.on("click", (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: interactiveIds.filter(id => map.getLayer(id)) });
+    if (!features.length) return;
+    const f = features[0];
+
+    // Clique num cluster de micromedidores: aproxima o zoom em vez de mostrar popup de atributos
+    if (f.layer.id === "Micromedidor_SAA_cluster") {
+      map.flyTo({ center: e.lngLat, zoom: Math.min(map.getZoom() + 3, 18) });
+      return;
+    }
+
+    const layerId = f.layer.id === "Micromedidor_SAA" ? "Micromedidor_SAA" : f.layer.id;
+    const layerDef = LAYERS.find(l => l.id === layerId);
+    const fields = POPUP_FIELDS[layerId] || POPUP_FIELDS.default;
+    const rows = fields.map(k => {
+      const label = FIELD_LABELS[k] || k;
+      const val = fmtVal(f.properties[k]);
+      return `<tr><td class="k">${label}</td><td class="v">${val}</td></tr>`;
+    }).join("");
+    const html = `<div id="popup-card"><h3>${layerDef ? layerDef.label : f.layer.id}</h3><table>${rows}</table></div>`;
+    new maplibregl.Popup({ maxWidth: "300px" }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+
+  interactiveIds.forEach(id => {
+    if (!map.getLayer(id)) return;
+    map.on("mouseenter", id, () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", id, () => map.getCanvas().style.cursor = "");
+  });
+
+  buildPanel();
+  document.getElementById("loading").style.display = "none";
+});
+
+// ---------- Painel de camadas ----------
+function buildPanel(){
+  const cats = {};
+  LAYERS.forEach(l => { (cats[l.cat] = cats[l.cat] || []).push(l); });
+
+  const body = document.getElementById("panel-body");
+  let html = `<h2>Camadas</h2>`;
+  Object.entries(cats).forEach(([cat, items]) => {
+    const onCount = items.filter(i => !DEFAULT_OFF.has(i.id)).length;
+    html += `
+      <div class="group">
+        <div class="group-header" data-cat="${cat}">
+          <span class="caret">▾</span>
+          <span class="group-title">${cat}</span>
+          <span class="group-count">${onCount}/${items.length}</span>
+        </div>
+        <div class="layer-list">
+          ${items.map(i => {
+            const swatchClass = i.type === "line" ? "swatch line" : "swatch";
+            const checked = DEFAULT_OFF.has(i.id) ? "" : "checked";
+            return `
+              <div class="layer-row">
+                <input type="checkbox" id="chk-${i.id}" ${checked} data-id="${i.id}" data-poly="${i.type==='polygon'}">
+                <span class="${swatchClass}" style="background:${i.color}"></span>
+                <label for="chk-${i.id}">${i.label}</label>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+  });
+  body.innerHTML = html;
+
+  body.querySelectorAll(".group-header").forEach(h => {
+    h.addEventListener("click", () => h.classList.toggle("collapsed"));
+  });
+
+  const MICRO_SUBLAYERS = ["Micromedidor_SAA_cluster", "Micromedidor_SAA_cluster_label", "Micromedidor_SAA"];
+
+  body.querySelectorAll("input[type=checkbox]").forEach(chk => {
+    chk.addEventListener("change", (e) => {
+      const id = e.target.dataset.id;
+      const isPoly = e.target.dataset.poly === "true";
+      const vis = e.target.checked ? "visible" : "none";
+      if (id === "Micromedidor_SAA") {
+        MICRO_SUBLAYERS.forEach(subId => map.setLayoutProperty(subId, "visibility", vis));
+        return;
+      }
+      map.setLayoutProperty(id, "visibility", vis);
+      if (isPoly) map.setLayoutProperty(id+"__outline", "visibility", vis);
+    });
+  });
+}
+
+document.getElementById("panel-toggle").addEventListener("click", () => {
+  document.getElementById("panel").classList.toggle("hidden");
+});
+
+// ---------- Busca por matrícula/código ----------
+document.getElementById("search").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const term = e.target.value.trim();
+  if (!term) return;
+
+  // Prioriza Micromedidor (MATRICULA), depois tenta CODID nas demais camadas visíveis.
+  const searchOrder = ["Micromedidor_SAA", ...LAYERS.map(l=>l.id).filter(id => id !== "Micromedidor_SAA")];
+  const visibleLayers = searchOrder.filter(id => {
+    if (id === "Micromedidor_SAA") return map.getLayer("Micromedidor_SAA") && map.getLayoutProperty("Micromedidor_SAA","visibility") !== "none";
+    return map.getLayer(id) && map.getLayoutProperty(id,"visibility") !== "none";
+  });
+
+  let found = null;
+  for (const id of visibleLayers) {
+    const sourceName = id === "Micromedidor_SAA" ? "micro" : "saa";
+    const filterField = id === "Micromedidor_SAA" ? "MATRICULA" : "CODID";
+    let feats = map.querySourceFeatures(sourceName, { sourceLayer: id, filter: ["all", ["==", ["get", filterField], term], ["==", ["get","point_count"], 1]] });
+    if (!feats.length && id === "Micromedidor_SAA") {
+      feats = map.querySourceFeatures(sourceName, { sourceLayer: id, filter: ["all", ["==", ["get", "CODID"], term], ["==", ["get","point_count"], 1]] });
+    }
+    if (feats.length) { found = feats[0]; break; }
+  }
+  if (found && found.geometry) {
+    let coord = found.geometry.coordinates;
+    if (found.geometry.type === "LineString") coord = coord[Math.floor(coord.length/2)];
+    if (found.geometry.type === "Polygon") coord = coord[0][0];
+    map.flyTo({ center: coord, zoom: 17 });
+  } else {
+    alert("Não encontrado na área/zoom atual. A busca funciona melhor para micromedidores (matrícula). Tente navegar até a região antes de buscar.");
+  }
+});
+</script>
+</body>
+</html>
